@@ -1,10 +1,10 @@
 import React from "react";
 export declare namespace State {
     type ObserveCallback<T extends {}> = (...args: {
-        [K in keyof T]: [K, T[K], T, T];
+        [K in keyof T]: [Readonly<K>, Readonly<T[K]>, Readonly<T>, Readonly<T>];
     }[keyof T]) => any;
     type InterceptCallback<T extends {}> = (...args: {
-        [K in keyof T]: [K, T[K], T];
+        [K in keyof T]: [Readonly<K>, Readonly<T[K]>, Readonly<T>, Readonly<T>];
     }[keyof T]) => void | boolean;
     type Observer = {
         readonly remove: () => void;
