@@ -1,43 +1,54 @@
-import React from "react";
 export declare namespace State {
-    type ObserveCallback<T extends {}> = (...args: {
-        [K in keyof T]: [Readonly<K>, Readonly<T[K]>, Readonly<T>, Readonly<T>];
-    }[keyof T]) => any;
-    type InterceptCallback<T extends {}> = (...args: {
-        [K in keyof T]: [Readonly<K>, Readonly<T[K]>, Readonly<T>, Readonly<T>];
-    }[keyof T]) => void | boolean;
+    type AsyncState<T> = T extends {
+        data: infer D;
+    } ? AsyncState<D> : ({
+        data: NonNullable<T>;
+        error: undefined;
+        isLoading: false;
+        isCanceled: false;
+    } | {
+        data: undefined;
+        error: Error;
+        isLoading: false;
+        isCanceled: false;
+    } | {
+        data: undefined;
+        error: undefined;
+        isLoading: true;
+        isCanceled: false;
+    } | {
+        data: undefined;
+        error: undefined;
+        isLoading: false;
+        isCanceled: true;
+    }) & AsyncHandlers<T>;
+    type AsyncHandlers<T> = Readonly<{
+        reset(prefetch?: boolean | undefined): Promise<void>;
+        update(resolver: () => Promise<T>, prefetch?: boolean | undefined): Promise<void>;
+        cancel(): void;
+    }>;
+    type AsyncResolver<T> = () => Promise<T>;
+    type ObserveCallback<T extends {}> = (key: any, val: any, oldState: T, newState: T) => void;
+    type InterceptorCallback<T extends {}> = (key: any, val: any, oldState: T, newState: T) => void | boolean;
     type Observer = {
-        readonly remove: () => void;
+        remove: () => void;
     };
     type Interceptor = {
-        readonly remove: () => void;
+        remove: () => void;
     };
-    type Dispatcher<T extends {}> = React.Dispatch<React.SetStateAction<{
-        state: T;
-    }>>;
-    type Type<T extends {}> = T & {
-        [DISPATCHERS]: Dispatcher<T>[];
-        [OBSERVERS]: ObserveCallback<T>[];
-        [INTERCEPTORS]: InterceptCallback<T>[];
-        [BATCH_UPDATES]: boolean;
-        [RESETTER]: () => void;
-    };
-    type Initializer<T extends {}> = () => T;
-    type AsyncInitializer<T extends {}> = () => Promise<T>;
-    const DISPATCHERS: unique symbol;
-    const OBSERVERS: unique symbol;
-    const INTERCEPTORS: unique symbol;
-    const BATCH_UPDATES: unique symbol;
-    const RESETTER: unique symbol;
-    export const isState: <T extends {}>(obj: T) => obj is Type<T>;
-    export const create: <T extends {}>(initState: T | (() => T)) => T;
-    export const createAsync: <T extends {}>(initializer: AsyncInitializer<T>) => Promise<T>;
-    export const use: <T extends {}>(state: T) => T;
-    export const observe: <T extends {}>(state: T, callback: ObserveCallback<T>) => Observer;
-    export const intercept: <T extends {}>(state: T, callback: InterceptCallback<T>) => Interceptor;
-    export const update: <T extends {}>(state: T, updater: (state: T) => any) => void;
+    export const create: <T extends {}>(state: T, asyncHandlers?: Readonly<{
+        reset(prefetch?: boolean | undefined): Promise<void>;
+        update(resolver: () => Promise<T extends AsyncState<infer R> ? R : T>, prefetch?: boolean | undefined): Promise<void>;
+        cancel(): void;
+    }> | undefined) => T;
+    export const createAsync: <T>(resolver: AsyncResolver<T>) => AsyncState<T>;
+    export const createAsyncPersistent: <T>(name: string, resolver: AsyncResolver<T>) => AsyncState<T>;
+    export const observe: <T extends {}>(state: T, observer: ObserveCallback<T>) => Observer;
+    export const intercept: <T extends {}>(state: T, interceptor: InterceptorCallback<T>) => Interceptor;
     export const reset: <T extends {}>(state: T) => void;
-    export const createPersistent: <T extends {}>(name: string, initState: T | Initializer<T>) => T;
-    export const createPersistentAsync: <T extends {}>(name: string, initState: AsyncInitializer<T>) => Promise<T>;
+    export const use: <T extends {}>(state: T) => T;
+    export const createPersistent: <T extends {}>(name: string, state: T) => T;
+    export const clearPersistent: () => void;
+    export const useObserve: <T extends {}>(state: T, observer: ObserveCallback<T>) => void;
     export {};
 }

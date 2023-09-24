@@ -1,288 +1,440 @@
 import React from "react";
-import ReactDOM from "react-dom";
 
 export namespace State
 {
-	type ObserveCallback<T extends {}> = (...args: { [K in keyof T]: [Readonly<K>, Readonly<T[K]>, Readonly<T>, Readonly<T>] }[keyof T]) => any;
-	type InterceptCallback<T extends {}> = (...args: { [K in keyof T]: [Readonly<K>, Readonly<T[K]>, Readonly<T>, Readonly<T>] }[keyof T]) => void | boolean;
+	// TODO: Implent a deep copy algorithm
+
+	type AsyncState<T> = T extends { data: infer D } ? AsyncState<D> : ({
+		data: NonNullable<T>;
+		error: undefined;
+		isLoading: false;
+		isCanceled: false;
+	} | {
+		data: undefined;
+		error: Error;
+		isLoading: false;
+		isCanceled: false;
+	} | {
+		data: undefined;
+		error: undefined;
+		isLoading: true;
+		isCanceled: false;
+	} | {
+		data: undefined;
+		error: undefined;
+		isLoading: false;
+		isCanceled: true;
+	}) & AsyncHandlers<T>;
+
+	type AsyncHandlers<T> = Readonly<{
+		reset(prefetch?: boolean | undefined): Promise<void>;
+		update(resolver: () => Promise<T>, prefetch?: boolean | undefined): Promise<void>;
+		cancel(): void;
+	}>;
+
+	type AsyncCancelToken = {
+		canceled: boolean;
+		isResolving: boolean;
+	};
+
+	type AsyncResolver<T> = () => Promise<T>;
+
+	type Wrapped<T extends {}> = {
+		[K in keyof T]: T[K] extends {} ? Wrapped<T[K]> : T[K];
+	} & {
+		[INTERNAL]: Internal<any>;
+		[ORIGINAL]: Internal<any>;
+	};
+
+	type Dispatcher<T extends {} = any> = React.Dispatch<React.SetStateAction<{ internal: Internal<T> }>>;
+
+	type ObserveCallback<T extends {}> = (key: any, val: any, oldState: T, newState: T) => void;
+	type InterceptorCallback<T extends {}> = (key: any, val: any, oldState: T, newState: T) => void | boolean;
 
 	type Observer = {
-		readonly remove: () => void;
+		remove: () => void;
 	};
 
 	type Interceptor = {
-		readonly remove: () => void;
+		remove: () => void;
 	};
 
-	type Dispatcher<T extends {}> = React.Dispatch<React.SetStateAction<{ state: T }>>;
-
-	type Type<T extends {}> = T & {
-		[DISPATCHERS]: Dispatcher<T>[];
-		[OBSERVERS]: ObserveCallback<T>[];
-		[INTERCEPTORS]: InterceptCallback<T>[];
-		[BATCH_UPDATES]: boolean;
-		[RESETTER]: () => void;
+	type Internal<T extends {}> = {
+		state: Wrapped<T>;
+		cleanState: T;
+		initialState: T;
+		[INTERCEPTORS]: InterceptorCallback<any>[];
+		[OBSERVERS]: ObserveCallback<any>[];
+		[DISPATCHERS]: Dispatcher[];
 	};
 
-	type Initializer<T extends {}> = () => T;
-	type AsyncInitializer<T extends {}> = () => Promise<T>;
+	type AsyncInternal<T extends {}> = Internal<T> & {
+		[ASYNC_TAG]: true;
+	};
 
-	const DISPATCHERS = Symbol("DISPATCHERS");
+	const INTERNAL = Symbol("INTERNAL");
+	const ORIGINAL = Symbol("ORIGINAL");
 	const OBSERVERS = Symbol("OBSERVERS");
+	const DISPATCHERS = Symbol("DISPATCHERS");
 	const INTERCEPTORS = Symbol("INTERCEPTORS");
-	const BATCH_UPDATES = Symbol("BATCH_UPDATES");
-	const RESETTER = Symbol("BATCH_UPDATES");
+	const ASYNC_TAG = Symbol("ASYNC_TAG");
 
-	export const isState = <T extends {}>(obj: T): obj is Type<T> => obj && (typeof obj === "object") && (Array.isArray((obj as any)[DISPATCHERS]));
+	const isState = (obj: any): obj is Wrapped<any> => obj && (typeof obj === "object") && ((obj)[INTERNAL] !== undefined);
+	const isAsync = (obj: any): obj is AsyncState<any> => obj && (typeof obj === "object") && ((obj)[ASYNC_TAG] !== undefined)
 
-	const registerStateDispatcher = <T extends {}>(state: T, dispatcher: Dispatcher<T>) =>
+	const getInternal = <T extends {}>(state: T): Internal<any> =>
 	{
 		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		if (!state[DISPATCHERS].includes(dispatcher))
-			state[DISPATCHERS].push(dispatcher);
+			throw new Error("Could not get internals!");
+		return state[INTERNAL];
 	};
 
-	const removeStateDispatcher = <T extends {}>(state: T, dispatcher: Dispatcher<T>) =>
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
+	const getObservers = <T extends {}>(state: T): ObserveCallback<any>[] => getInternal(state)[OBSERVERS];
 
-		if (state[DISPATCHERS].includes(dispatcher))
-			state[DISPATCHERS].splice(state[DISPATCHERS].indexOf(dispatcher), 1);
+	const getInterceptors = <T extends {}>(state: T): InterceptorCallback<any>[] => getInternal(state)[INTERCEPTORS];
+
+	const isKeyOf = <T extends {}>(obj: T, key: string | number | symbol): key is keyof typeof obj =>
+	{
+		return (Array.isArray(obj) && (key == Number(key))) || (obj && (typeof obj === "object") && ((obj as any)[key] !== undefined));
 	};
 
-	const registerObserver = <T extends {}>(state: T, callback: ObserveCallback<T>) =>
+	const wrapChildProxies = <T extends {}>(internal: Internal<any>, value: T, path: string[]): Wrapped<T> =>
 	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
+		const copy = JSON.parse(JSON.stringify(value)) as T;
 
-		if (!state[OBSERVERS].includes(callback))
-			state[OBSERVERS].push(callback);
+		for (const k in value)
+		{
+			const val = value[k];
+			if (typeof val === "function")
+				copy[k] = val;
+			else if (val && (typeof val === "object") && !isState(val))
+				copy[k] = createProxy(internal, val, [...path, k]) as any;
+		}
+
+		return copy as Wrapped<T>;
 	};
 
-	const removeObserver = <T extends {}>(state: T, callback: ObserveCallback<T>) =>
+	const match = (a: any, b: any) =>
 	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		if (state[OBSERVERS].includes(callback))
-			state[OBSERVERS].splice(state[OBSERVERS].indexOf(callback), 1);
-	};
-
-	const registerInterceptor = <T extends {}>(state: T, callback: InterceptCallback<T>) =>
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		if (!state[INTERCEPTORS].includes(callback))
-			state[INTERCEPTORS].push(callback);
-	};
-
-	const removeInterceptor = <T extends {}>(state: T, callback: InterceptCallback<T>) =>
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		if (state[INTERCEPTORS].includes(callback))
-			state[INTERCEPTORS].splice(state[INTERCEPTORS].indexOf(callback), 1);
-	};
-
-	const dispatchStateChange = <T extends {}, K extends keyof T>(state: T, key: K, value: T[K]): boolean =>
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		let canceled = false;
-
-		const interceptCallbacks = state[INTERCEPTORS];
-
-		for (const callback of interceptCallbacks)
-			if (callback(key, value, state, { ...state, [key]: value }) === false)
-				canceled = true;
-
-		if (canceled)
+		if (typeof a !== typeof b)
 			return false;
 
-		const observeCallbacks = state[OBSERVERS];
-		
-		for (const callback of observeCallbacks)
-			callback(key, value, state, { ...state, [key]: value });
-
-		return true;
-	};
-
-	const dispatchStateUpdate = <T extends {}>(state: T) =>
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		const stateDispatchers = state[DISPATCHERS];
-
-		ReactDOM.unstable_batchedUpdates(() =>
+		if (Array.isArray(a))
 		{
-			const newState = { state };
-			stateDispatchers.forEach(dispatch => dispatch(newState));
-		});
+			if (!Array.isArray(b))
+				return false;
+
+			if (a.length !== b.length)
+				return false;
+
+			for (let i = 0; i !== a.length; i++)
+				if (a[i] !== b[i])
+					return false;
+
+			return true;
+		}
+
+		if (typeof a === "object" && a && b)
+		{
+			if (!match(Object.keys(a), Object.keys(b)))
+				return false;
+
+			for (const k in a)
+				if (a[k] !== b[k])
+					return false;
+
+			return true;
+		}
+
+		return a === b;
 	};
 
-	const isInitializer = <T extends {}>(obj: any): obj is Initializer<T> => typeof obj === "function";
-
-	export const create = <T extends {}>(initState: T | (() => T)): T =>
+	const createProxy = <T extends {}>(internal: Internal<any>, original: T, path: string[], asyncHandlers: AsyncHandlers<T> | undefined = undefined): Wrapped<T> =>
 	{
-		const state = isInitializer(initState) ? initState() : initState;
+		const wrapped = wrapChildProxies(internal, original, path);
 
-		const stateDispatchers: Dispatcher<T>[] = [];
-		const observeCallbacks: ObserveCallback<T>[] = [];
-		const interceptCallbacks: InterceptCallback<T>[] = [];
-
-		let batchUpdates = false;
-
-		const initialState = structuredClone(state);
-
-		const reset = () => update(proxy, () => Object.assign(proxy, structuredClone(initialState)));
-
-		const wrapProxy = <T extends {}>(obj: T) => new Proxy(obj, {
-			get(state, prop, _proxy)
+		return new Proxy(wrapped, {
+			get(target, p)
 			{
-				const key = prop as keyof T;
-				switch (key)
+				const k = p as keyof typeof target;
+				switch (k)
 				{
-					case DISPATCHERS:
-						return stateDispatchers;
-					case OBSERVERS:
-						return observeCallbacks;
-					case INTERCEPTORS:
-						return interceptCallbacks;
-					case BATCH_UPDATES:
-						return batchUpdates;
-					case RESETTER:
-						return reset;
+					case INTERNAL:
+						return internal;
+					case ORIGINAL:
+						return original;
+					case ASYNC_TAG:
+						return asyncHandlers === undefined ? undefined : true;
 					default:
-						return state[key];
+						if (asyncHandlers && isKeyOf(asyncHandlers, k))
+							return asyncHandlers[k];
+						return target[k];
 				}
 			},
-			set(state, prop, newValue, proxy)
+			set(target, p, newValue)
 			{
-				const key = prop as keyof T;
+				const k = p as keyof typeof target;
 
-				if (state[key] === newValue)
+				if (match(target[k], newValue))
 					return true;
 
-				if (dispatchStateChange(proxy, key, newValue))
-					state[key] = newValue;
+				const oldState = JSON.parse(JSON.stringify(internal.cleanState));
 
-				if (!batchUpdates)
-					dispatchStateUpdate(proxy);
+				let newStateTarget = internal.cleanState;
+				path.forEach(p => newStateTarget = newStateTarget[p]);
+
+				const isNewValueState = isState(newValue);
+
+				newStateTarget[p] = isNewValueState ? newValue[ORIGINAL] : newValue;
+
+				const propertyPaths = [...path, p.toString()];
+
+				const propertyPath = propertyPaths.join(".");
+
+				let canceled = false;
+
+				internal[INTERCEPTORS].forEach(callbackfn => 
+				{
+					if (callbackfn(propertyPath, newValue, oldState, internal.cleanState) === false)
+						canceled = true;
+				});
+
+				if (canceled)
+					return true;
+
+				internal[OBSERVERS].forEach(callbackfn => callbackfn(propertyPath, newValue, oldState, internal.cleanState));
+
+				if (isNewValueState)
+				{
+					original[k as keyof typeof original] = newValue[ORIGINAL] as any;
+					target[k] = newValue as any;
+				}
+				else
+				{
+					original[k as keyof typeof original] = newValue;
+
+					if (newValue && typeof newValue === "object")
+						target[k] = createProxy(internal, newValue, propertyPaths) as any;
+					else
+						target[k] = newValue;
+				}
+
+				const newDispatchState = { internal };
+
+				internal[DISPATCHERS].forEach(update => update(newDispatchState));
 
 				return true;
 			}
-		});
-
-		const wrapProxiesRecursive = (state: any) =>
-		{
-			for (const k in state)
-				if (typeof state[k] === "object" && state[k] && !isState(state[k]))
-					state[k] = wrapProxiesRecursive(state[k]);
-
-			return wrapProxy(state);
-		};
-
-		const proxy = wrapProxiesRecursive(state);
-
-		return proxy;
+		}) as Wrapped<T>;
 	};
 
-	export const createAsync = async <T extends {}>(initializer: AsyncInitializer<T>): Promise<T> => create(await initializer());
+	export const create = <T extends {}>(state: T, asyncHandlers: AsyncHandlers<T extends AsyncState<infer R> ? R : T> | undefined = undefined): T =>
+	{
+		const internal: Partial<Internal<T>> = {
+			initialState: structuredClone(state),
+			cleanState: state,
+			[INTERCEPTORS]: [],
+			[OBSERVERS]: [],
+			[DISPATCHERS]: []
+		};
+
+		if (asyncHandlers !== undefined)
+		{
+			const internalAsync = internal as AsyncInternal<T>;
+			internalAsync[ASYNC_TAG] = true;
+		}
+
+		internal.state = createProxy(internal as Required<Internal<T>>, state, [], asyncHandlers as any);
+
+		return internal.state! as T;
+	};
+
+	const resolveAsyncState = <T>(state: AsyncState<T>, resolver: AsyncResolver<T>, token: AsyncCancelToken) =>
+	{
+		token.isResolving = true;
+
+		const update = (data: T | undefined, error?: Error) =>
+		{
+			token.isResolving = false;
+
+			if (token.canceled)
+			{
+				token.canceled = false;
+				Object.assign(state, {
+					data: undefined,
+					error: undefined,
+					isLoading: false,
+					isCanceled: true
+				});
+				return;
+			}
+
+			const keys = Object.getOwnPropertyNames(data || {});
+
+			if (keys.includes("data") && keys.includes("error"))
+			{
+				state.data = (data as any).data;
+				state.error = (data as any).error;
+				state.isLoading = false;
+			}
+			else
+				Object.assign(state, {
+					data,
+					error,
+					isLoading: false,
+					isCanceled: false
+				});
+		};
+
+		return resolver().then(data => update(data)).catch(error => update(undefined, error));
+	};
+
+	const createAsyncInternal = <T>(resolver: AsyncResolver<T>, resolve: boolean): AsyncState<T> =>
+	{
+		let currentResolver: { resolver: AsyncResolver<T> } = { resolver };
+
+		const cancelToken: AsyncCancelToken = { isResolving: false, canceled: false };
+
+		const reset = async (prefetch?: boolean) => 
+		{
+			if (!prefetch)
+				Object.assign(state, {
+					isLoading: true,
+					data: undefined,
+					error: undefined,
+					isCanceled: false
+				});
+
+			await resolveAsyncState(state, currentResolver.resolver, cancelToken);
+		};
+
+		const state = create<AsyncState<T>>({
+			isLoading: true,
+			data: undefined,
+			error: undefined,
+		} as any, {
+			cancel: () =>
+			{
+				if (cancelToken.isResolving)
+					cancelToken.canceled = true;
+			},
+			reset,
+			update: async (resolver, prefetch) => 
+			{
+				if (cancelToken.isResolving)
+					return;
+
+				currentResolver.resolver = resolver as any;
+				await reset(prefetch);
+			}
+		});
+
+		if (resolve)
+			resolveAsyncState(state, currentResolver.resolver, cancelToken);
+
+		return state;
+	};
+
+	export const createAsync = <T>(resolver: AsyncResolver<T>): AsyncState<T> => createAsyncInternal(resolver, true);
+
+	export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T>): AsyncState<T> =>
+	{
+		if (persistentMap.has(name))
+			return persistentMap.get(name);
+
+		const foundState = JSON.parse(localStorage.getItem(name) || "null") as AsyncState<T>;
+
+		const s = createAsyncInternal(resolver, foundState == null || foundState.isCanceled || foundState.isLoading);
+
+		if (foundState)
+			Object.assign(s, foundState);
+
+		persistentMap.set(name, s);
+
+		observe(s, (_key, _val, _oldState, newState) => localStorage.setItem(name, JSON.stringify(newState)));
+
+		return s as any;
+	};
+
+	export const observe = <T extends {}>(state: T, observer: ObserveCallback<T>): Observer =>
+	{
+		const observers = getObservers(state);
+		if (!observers.includes(observer))
+			observers.push(observer);
+
+		return {
+			remove: () => observers.splice(observers.indexOf(observer), 1)
+		};
+	};
+
+	export const intercept = <T extends {}>(state: T, interceptor: InterceptorCallback<T>): Interceptor =>
+	{
+		const interceptors = getInterceptors(state);
+		if (!interceptors.includes(interceptor))
+			interceptors.push(interceptor);
+
+		return {
+			remove: () => interceptors.splice(interceptors.indexOf(interceptor), 1)
+		};
+	};
+
+	export const reset = <T extends {}>(state: T) => 
+	{
+		if (isAsync(state))
+		{
+			state.reset();
+		}
+		else
+		{
+			Object.assign(state, structuredClone(getInternal(state).initialState));
+		}
+	};
 
 	export const use = <T extends {}>(state: T): T =>
 	{
-		const [_state, _setState] = React.useState<{ state: Type<T> }>(() => ({ state: isState(state) ? state : create(state) }) as { state: Type<T> });
+		const [_state, _setState] = React.useState<{ internal: Internal<T> }>({ internal: (isState(state) ? state[INTERNAL] : (create(state) as any)[INTERNAL]) as any });
 
 		React.useEffect(() => 
 		{
-			registerStateDispatcher(_state.state, _setState);
-			return () => removeStateDispatcher(_state.state, _setState);
+			_state.internal[DISPATCHERS].push(_setState);
+			return () => { _state.internal[DISPATCHERS].splice(_state.internal[DISPATCHERS].indexOf(_setState), 1); };
 		}, [_state, _setState]);
 
-		return _state.state;
+		return _state.internal.state as T;
 	};
 
-	export const observe = <T extends {}>(state: T, callback: ObserveCallback<T>): Observer =>
+	const persistentMap = new Map<string, any>();
+
+	export const createPersistent = <T extends {}>(name: string, state: T): T =>
 	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
+		if (persistentMap.has(name))
+			return persistentMap.get(name);
 
-		registerObserver(state, callback as any);
+		const s = State.create(state);
 
-		return Object.freeze({
-			remove: () => removeObserver(state, callback as any)
-		});
+		const foundState = localStorage.getItem(name);
+
+		if (foundState)
+			Object.assign(s, JSON.parse(foundState));
+
+		persistentMap.set(name, s);
+
+		observe(s, (_key, _val, _oldState, newState) => localStorage.setItem(name, JSON.stringify(newState)));
+
+		return s;
 	};
 
-	export const intercept = <T extends {}>(state: T, callback: InterceptCallback<T>): Interceptor =>
+	export const clearPersistent = () =>
 	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		registerInterceptor(state, callback as any);
-
-		return Object.freeze({
-			remove: () => removeInterceptor(state, callback as any)
-		});
-	};
-
-	export const update = <T extends {}>(state: T, updater: (state: T) => any) => 
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		state[BATCH_UPDATES] = true;
-		updater(state);
-		state[BATCH_UPDATES] = false;
-		dispatchStateUpdate(state);
-	};
-
-	export const reset = <T extends {}>(state: T) =>
-	{
-		if (!isState(state))
-			throw new Error(`Object is not a state object!`);
-
-		state[RESETTER]();
-	};
-
-	const usedPersistenNames: string[] = [];
-
-	export const createPersistent = <T extends {}>(name: string, initState: T | Initializer<T>): T =>
-	{
-		if (usedPersistenNames.includes(name))
-			throw new Error(`Name ${name} is already used!`);
-
-		const state = isInitializer(initState) ? initState() : initState;
-
-		const get = (): T | null => 
+		for (const [name, state] of persistentMap)
 		{
-			const dataString = localStorage.getItem(name);
-			return dataString ? JSON.parse(dataString) : state;
-		};
-
-		const set = (state: T) => localStorage.setItem(name, JSON.stringify(state));
-
-		if (!localStorage.getItem(name))
-			set(state);
-
-		const proxyState = create(state);
-
-		update(proxyState, () => Object.assign(proxyState, get()!));
-
-		observe(proxyState as T, (_a, _b, _c, newState) => set(newState));
-
-		return proxyState;
+			State.reset(state);
+			localStorage.removeItem(name);
+		}
 	};
 
-	export const createPersistentAsync = async <T extends {}>(name: string, initState: AsyncInitializer<T>): Promise<T> =>
+	export const useObserve = <T extends {}>(state: T, observer: ObserveCallback<T>) =>
 	{
-		return createPersistent(name, await initState());
-	}
+		return React.useEffect(() => observe(state, observer).remove, []);
+	};
 }
