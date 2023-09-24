@@ -4,6 +4,31 @@ export namespace State
 {
 	// TODO: Implent a deep copy algorithm
 
+	const clone = <T>(obj: T): T =>
+	{
+		const type = typeof obj;
+		
+		if(obj && (type === "object"))
+		{
+			if(Array.isArray(obj))
+			{
+				const newArray = new Array(obj.length);
+				for(let i = 0; i != obj.length; i++)
+					newArray[i] = clone(obj[i]);
+				return newArray as T;
+			}
+			else
+			{
+				const newObj = {} as any;
+				for(const k in obj)
+					newObj[k] = clone(obj[k]);
+				return newObj;
+			}
+		}
+
+		return obj;
+	};
+
 	type AsyncState<T> = T extends { data: infer D } ? AsyncState<D> : ({
 		data: NonNullable<T>;
 		error: undefined;
@@ -100,7 +125,7 @@ export namespace State
 
 	const wrapChildProxies = <T extends {}>(internal: Internal<any>, value: T, path: string[]): Wrapped<T> =>
 	{
-		const copy = JSON.parse(JSON.stringify(value)) as T;
+		const copy = clone(value) as T;
 
 		for (const k in value)
 		{
@@ -178,7 +203,7 @@ export namespace State
 				if (match(target[k], newValue))
 					return true;
 
-				const oldState = JSON.parse(JSON.stringify(internal.cleanState));
+				const oldState = clone(internal.cleanState);
 
 				let newStateTarget = internal.cleanState;
 				path.forEach(p => newStateTarget = newStateTarget[p]);
@@ -231,7 +256,7 @@ export namespace State
 	export const create = <T extends {}>(state: T, asyncHandlers: AsyncHandlers<T extends AsyncState<infer R> ? R : T> | undefined = undefined): T =>
 	{
 		const internal: Partial<Internal<T>> = {
-			initialState: structuredClone(state),
+			initialState: clone(state),
 			cleanState: state,
 			[INTERCEPTORS]: [],
 			[OBSERVERS]: [],
@@ -386,7 +411,7 @@ export namespace State
 		}
 		else
 		{
-			Object.assign(state, structuredClone(getInternal(state).initialState));
+			Object.assign(state, clone(getInternal(state).initialState));
 		}
 	};
 
