@@ -1,5 +1,5 @@
 export declare namespace State {
-    type AsyncState<T> = T extends {
+    type AsyncState<T> = (T extends {
         data: infer D;
     } ? AsyncState<D> : ({
         data: NonNullable<T>;
@@ -21,7 +21,7 @@ export declare namespace State {
         error: undefined;
         isLoading: false;
         isCanceled: true;
-    }) & AsyncHandlers<T>;
+    })) & AsyncHandlers<T>;
     type AsyncHandlers<T> = Readonly<{
         reset(prefetch?: boolean | undefined): Promise<void>;
         update(resolver: () => Promise<T>, prefetch?: boolean | undefined): Promise<void>;
