@@ -12,6 +12,7 @@
 				"../lib/esm/index"
 			]
 		},
+		"experimentalDecorators": true,
 		"module": "ESNext",
 		"skipLibCheck": true,
 		"moduleResolution": "bundler",

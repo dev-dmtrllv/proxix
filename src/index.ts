@@ -7,20 +7,20 @@ export namespace State
 	const clone = <T>(obj: T): T =>
 	{
 		const type = typeof obj;
-		
-		if(obj && (type === "object"))
+
+		if (obj && (type === "object"))
 		{
-			if(Array.isArray(obj))
+			if (Array.isArray(obj))
 			{
 				const newArray = new Array(obj.length);
-				for(let i = 0; i != obj.length; i++)
+				for (let i = 0; i != obj.length; i++)
 					newArray[i] = clone(obj[i]);
 				return newArray as T;
 			}
 			else
 			{
 				const newObj = {} as any;
-				for(const k in obj)
+				for (const k in obj)
 					newObj[k] = clone(obj[k]);
 				return newObj;
 			}
@@ -238,7 +238,9 @@ export namespace State
 				{
 					original[k as keyof typeof original] = newValue;
 
-					if (newValue && typeof newValue === "object")
+					if (typeof newValue === "function")
+						target[k] = newValue;
+					else if (newValue && typeof newValue === "object")
 						target[k] = createProxy(internal, newValue, propertyPaths) as any;
 					else
 						target[k] = newValue;
@@ -298,9 +300,12 @@ export namespace State
 
 			if (keys.includes("data") && keys.includes("error"))
 			{
-				state.data = (data as any).data;
-				state.error = (data as any).error;
-				state.isLoading = false;
+				Object.assign(state, {
+					data: (data as any).data,
+					error: (data as any).error,
+					isLoading: false,
+					isCanceled: false
+				});
 			}
 			else
 				Object.assign(state, {
@@ -311,7 +316,7 @@ export namespace State
 				});
 		};
 
-		return resolver().then(data => update(data)).catch(error => update(undefined, error));
+		return resolver().then(data => update(data as any)).catch(error => update(undefined, error));
 	};
 
 	const createAsyncInternal = <T>(resolver: AsyncResolver<T>, resolve: boolean): AsyncState<T> =>
