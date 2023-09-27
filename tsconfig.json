@@ -1,48 +1,41 @@
 {
 	"compilerOptions": {
-		"rootDir": "./src",
-		"outDir": "./lib/esm",
-		"strictPropertyInitialization": true,
-		"allowArbitraryExtensions": false,
-		"allowImportingTsExtensions": false,
-		"allowJs": false,
-		"allowSyntheticDefaultImports": true,
-		"allowUmdGlobalAccess": false,
-		"allowUnreachableCode": false,
-		"allowUnusedLabels":  false,
-		"alwaysStrict": true,
-		"assumeChangesOnlyAffectDirectDependencies": false,
-		"checkJs": false,
-		"esModuleInterop": true,
-		"experimentalDecorators": true,
-		"exactOptionalPropertyTypes": true,
-		"module": "ESNext",
 		"target": "ESNext",
-		"strictNullChecks": true,
-		"moduleDetection": "auto",
-		"moduleResolution": "Node",
-		"noImplicitAny": true,
-		"noImplicitOverride": true,
-		"noFallthroughCasesInSwitch": false,
-		"noImplicitReturns": true,
-		"noImplicitThis": true,
-		"noUnusedLocals": true,
-		"emitDecoratorMetadata": false,
-		"noUnusedParameters": true,
-		"removeComments": true,
+		"useDefineForClassFields": true,
+		"lib": [
+			"ES2020",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"paths": {
+			"proxix": [
+				"../lib/esm/index"
+			]
+		},
+		"experimentalDecorators": true,
+		"module": "ESNext",
+		"skipLibCheck": true,
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
 		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": true,
 		"jsx": "react-jsx",
 		"strict": true,
-		"useDefineForClassFields": false,
-		"useUnknownInCatchVariables": true,
-		"sourceMap": true,
-		"declaration": true
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"strictFunctionTypes": true,
+		"strictBindCallApply": true,
+		"strictNullChecks": true,
+		"strictPropertyInitialization": true,
+		"noStrictGenericChecks": false
 	},
 	"include": [
 		"./src/**/*"
 	],
 	"exclude": [
-		"./node_modules/**/*",
-		"./lib/**/*"
+		"../src/**",
+		"../lib/**"
 	]
 }
