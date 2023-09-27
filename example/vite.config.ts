@@ -1,12 +1,5 @@
-import { PluginOption, defineConfig } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-
-const fullReloadAlways = {
-	handleHotUpdate: () => 
-	{
-
-	}
-};
 
 export default defineConfig({
 	plugins: [
@@ -24,8 +17,5 @@ export default defineConfig({
 				return []
 			},
 		} as any
-	],
-	server: {
-		hmr: false
-	}
+	]
 })

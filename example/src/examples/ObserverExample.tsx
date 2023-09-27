@@ -2,7 +2,7 @@ import { State } from "proxix";
 
 const CounterState = State.create({ counter: 0 });
 
-State.observe(CounterState, (key, value) => 
+State.observe(CounterState, ([key, value]) => 
 {
 	if(key === "counter")
 		console.log("new counter value = ", value);

@@ -10,7 +10,7 @@ const AsyncState = State.createAsyncPersistent("persistent-api-call", () =>
 const AsyncPersistentStateExample = () =>
 {
 	const { data, error, isLoading, isCanceled, reset, cancel } = State.use(AsyncState);
-
+	
 	if (isLoading)
 		return (
 			<div>
@@ -23,13 +23,13 @@ const AsyncPersistentStateExample = () =>
 		return (
 			<div>
 				<h1>{error ? `${error.name} - ${error.message}` : "Canceled"}</h1>
-				<button onClick={() => reset()}>Reload</button>
+				<button onClick={_ => reset()}>Reload</button>
 			</div>
 		);
 
 	return (
 		<div>
-			<button onClick={() => reset()}>Reload</button>
+			<button onClick={_ => reset()}>Reload</button>
 			{data.map(({ id, first_name, last_name }) => (
 				<div key={id}>
 					{id} - {first_name} {last_name}

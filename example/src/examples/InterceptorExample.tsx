@@ -2,7 +2,7 @@ import { State } from "proxix";
 
 const CounterState = State.create({ counter: 0 });
 
-State.intercept(CounterState, (key, value) => 
+State.intercept(CounterState, ([key, value]) => 
 {
 	// prevent state change when the value is bigger than 10
 	if(key === "counter")
