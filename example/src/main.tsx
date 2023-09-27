@@ -20,6 +20,31 @@ const objTest = State.create({
 	list: [rand(), rand(), rand()]
 });
 
+State.observe(objTest, ([key, value]) => 
+{
+	console.log("observed", key, value);
+});
+
+State.intercept(objTest, ([key, value]) => 
+{
+	console.log("intercepted", key, value);
+	if (key === "test")
+		return value <= 130;
+});
+
+
+State.observe(external, ([key, value]) => 
+{
+	console.log("observed", key, value);
+});
+
+State.intercept(external, ([key, value]) => 
+{
+	console.log("intercepted", key, value);
+	if (key === "count")
+		return value <= 130;
+});
+
 const pushObj = () => objTest.list.push(rand());
 
 const A = () => 

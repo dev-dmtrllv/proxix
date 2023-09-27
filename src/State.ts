@@ -1,21 +1,31 @@
 import React from "react";
-import { isClass, isPrimitive, match } from "./utils";
+import { isPrimitive, match } from "./utils";
 
 export namespace State
 {
 	type Internal<T extends {}> = {
 		state: ProxyState<T>;
-		[DISPATCHERS]: Dispatcher<T>[];
+		dispatchers: Dispatcher<T>[];
+		observers: ObserveCallback<T>[];
+		interceptors: InterceptCallback<T>[];
 	};
 
 	type ProxyState<T extends {}> = T & {
 		[INTERNAL]: Internal<T>;
 	};
 
+	type Change<T extends {}> = { [K in keyof T]: [K, T[K]] }[keyof T];
+
+	type ObserveCallback<T extends {}> = (change: Change<T>) => void;
+	type InterceptCallback<T extends {}> = (change: Change<T>) => (void | boolean);
+
+	type Revoker = {
+		readonly revoke: () => void;
+	};
+
 	type Dispatcher<T extends {}> = React.Dispatch<React.SetStateAction<{ state: Internal<T>["state"] }>>;
 
 	const INTERNAL = Symbol("INTERNAL");
-	const DISPATCHERS = Symbol("DISPATCHERS");
 	const CLASS_TAG = Symbol("CLASS_TAG");
 
 	const isState = <T extends {}>(o: T): o is ProxyState<T> => isObject(o) && ((o as any)[INTERNAL] !== undefined);
@@ -38,7 +48,7 @@ export namespace State
 		wrapChildProxies(internal, state);
 
 		const proxy: ProxyState<T> = new Proxy<T, ProxyState<T>>(state, {
-			get(target, p, _proxy)
+			get: (target, p, _proxy) =>
 			{
 				switch (p)
 				{
@@ -48,21 +58,18 @@ export namespace State
 						return target[p];
 				}
 			},
-			set(target, p, val, _proxy)
+			set: (target, p, val, _proxy) =>
 			{
-				if(match(target[p], val))
+				if (match(target[p], val))
 					return true;
 
-				if(isObject(val))
-				{
+				if (!dispatch(internal, p as string, val))
+					return true;
+
+				if (isObject(val))
 					target[p] = createProxy(internal, val) as any;
-				}
 				else
-				{
 					target[p] = val;
-				}
-				
-				dispatch(internal);
 
 				return true;
 			}
@@ -75,7 +82,9 @@ export namespace State
 	{
 		const internal: Internal<T> = {
 			state: null as any,
-			[DISPATCHERS]: []
+			dispatchers: [],
+			interceptors: [],
+			observers: []
 		};
 
 		internal.state = createProxy(internal, state);
@@ -87,7 +96,9 @@ export namespace State
 	{
 		const internal: Internal<any> = {
 			state,
-			[DISPATCHERS]: []
+			dispatchers: [],
+			interceptors: [],
+			observers: []
 		};
 
 		return Object.freeze(internal);
@@ -128,12 +139,15 @@ export namespace State
 							if (match(val, value))
 								return;
 
+							if (!dispatch(this[INTERNAL], key, value))
+								return;
+
 							if (!isPrimitive(value))
 								val = createProxy(this[INTERNAL], value);
 							else
 								val = value;
 
-							dispatch(this[INTERNAL]);
+
 						},
 						enumerable: true,
 						configurable: true
@@ -145,11 +159,11 @@ export namespace State
 
 	const addDispatcher = <T extends {}>(state: ProxyState<T>, dispatcher: Dispatcher<T>): (() => void) =>
 	{
-		const dispatchers = state[INTERNAL][DISPATCHERS];
-		
+		const dispatchers = state[INTERNAL].dispatchers;
+
 		if (!dispatchers.includes(dispatcher))
 			dispatchers.push(dispatcher);
-		
+
 		return () => 
 		{
 			if (dispatchers.includes(dispatcher))
@@ -157,10 +171,23 @@ export namespace State
 		};
 	};
 
-	const dispatch = <T extends {}>(internal: Internal<T>): void =>
+	const dispatch = <T extends {}>(internal: Internal<T>, key: string, value: any): boolean =>
 	{
+		const change: Change<T> = [key as any, value];
+
+		for (const cb of internal.interceptors)
+			if (cb(change) === false)
+				return false;
+
+		for (const cb of internal.observers)
+			cb(change);
+
 		const newState = { state: internal.state };
-		internal[DISPATCHERS].forEach(dispatch => dispatch(newState));
+
+		for (const cb of internal.dispatchers)
+			cb(newState);
+
+		return true;
 	};
 
 	const isClassState = (o: any): o is (new (...args: any[]) => any) => isObject(o) && ((o as any)[CLASS_TAG] === true);
@@ -169,18 +196,14 @@ export namespace State
 	function wrapState<T>(state: T, ...args: any[])
 	{
 		if (isClassState(state))
-		{
 			return new state(...args);
-		}
-		else 
-		{
-			const s = typeof state === "function" ? state() : state;
 
-			if (!isState(s))
-				return create(s);
-			
-			return state;
-		}
+		const s = typeof state === "function" ? state() : state;
+
+		if (!isState(s))
+			return create(s);
+
+		return state;
 	};
 
 	export function use<T, Args extends any[]>(StateClass: new (...args: Args) => T, ...args: Args): T;
@@ -196,5 +219,60 @@ export namespace State
 		}, [_setState]);
 
 		return _state.state;
+	};
+
+	export const observe = <T extends {}>(state: T, observer: ObserveCallback<T>): Revoker =>
+	{
+		if (!isState(state))
+		{
+			console.warn("Provided object is not a state object!");
+			return { revoke: () => console.warn("No state object provided!") };
+		}
+
+		const { observers } = state[INTERNAL];
+
+		observers.push(observer);
+
+		const revoker = {
+			revoke: () => 
+			{
+				revoker.revoke = () => console.warn("Observer is already revoked!");
+
+				if (observers.includes(observer))
+					observers.splice(observers.indexOf(observer), 1);
+				else
+					console.warn("Observer not found!");
+			}
+		};
+
+		return revoker;
+	};
+
+	export const intercept = <T extends {}>(state: T, interceptor: InterceptCallback<T>): Revoker =>
+	{
+
+		if (!isState(state))
+		{
+			console.warn("Provided object is not a state object!");
+			return { revoke: () => console.warn("No state object provided!") };
+		}
+
+		const { interceptors } = state[INTERNAL];
+
+		interceptors.push(interceptor);
+
+		const revoker = {
+			revoke: () => 
+			{
+				revoker.revoke = () => console.warn("Observer is already revoked!");
+
+				if (interceptors.includes(interceptor))
+					interceptors.splice(interceptors.indexOf(interceptor), 1);
+				else
+					console.warn("Observer not found!");
+			}
+		};
+
+		return revoker;
 	};
 };
