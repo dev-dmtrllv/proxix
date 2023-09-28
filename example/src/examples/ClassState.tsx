@@ -2,6 +2,7 @@ import { State } from "proxix";
 
 class ClassState
 {
+	@State.observable
 	private counter_: number = 0;
 
 	public get counter() { return this.counter_; }

@@ -1,9 +1,10 @@
-import { State } from "proxix";
+import { getGlobal, global, observable, use } from "proxix";
+import React from "react";
 
-@State.global
+@global
 class SingletonState
 {
-	@State.observable
+	@observable
 	private counter_: number = 0;
 
 	public get counter() { return this.counter_; }
@@ -14,7 +15,7 @@ class SingletonState
 
 const OtherPart = () =>
 {
-	const { counter } = State.use(SingletonState);
+	const { counter } = use(SingletonState);
 	
 	return (
 		<h1>
@@ -23,9 +24,14 @@ const OtherPart = () =>
 	);
 };
 
-const SingletonClassExample = () =>
+const SimpleImportsExample = () =>
 {
-	const { counter, dec, inc } = State.use(SingletonState);
+	const { counter, dec, inc } = use(SingletonState);
+
+	React.useEffect(() => 
+	{
+		console.log(getGlobal(SingletonState))
+	}, []);
 	
 	return (
 		<>
@@ -38,4 +44,4 @@ const SingletonClassExample = () =>
 	);
 };
 
-export default SingletonClassExample;
+export default SimpleImportsExample;
