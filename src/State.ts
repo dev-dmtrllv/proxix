@@ -396,8 +396,24 @@ export function use(state: any, ...args: any[])
 	return _state.state;
 };
 
-export const observe = <T extends {}>(state: T, observer: ObserveCallback<T>): Revoker =>
+export function observe<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, observer: ObserveCallback<T>): Revoker;
+export function observe<T extends {}>(state: T, observer: ObserveCallback<T>): Revoker;
+export function observe<T extends {}>(state: any, observer: ObserveCallback<T>): Revoker
 {
+	if (isWrappedClass(state))
+	{
+		if (globalClassStates.has(state))
+		{
+			if (globalClassStates.get(state) === null)
+				globalClassStates.set(state, new state());
+		}
+		else
+		{
+			globalClassStates.set(state, new state());
+		}
+		state = globalClassStates.get(state);
+	}
+	
 	if (!isState(state))
 	{
 		console.warn("Provided object is not a state object!");
@@ -421,10 +437,27 @@ export const observe = <T extends {}>(state: T, observer: ObserveCallback<T>): R
 	};
 
 	return revoker;
-};
+}; 
 
-export const intercept = <T extends {}>(state: T, interceptor: InterceptCallback<T>): Revoker =>
+
+export function intercept<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, interceptor: InterceptCallback<T>): Revoker;
+export function intercept<T extends {}>(state: T, interceptor: InterceptCallback<T>): Revoker;
+export function intercept<T extends {}>(state: any, interceptor: InterceptCallback<T>): Revoker
 {
+	if (isWrappedClass(state))
+	{
+		if (globalClassStates.has(state))
+		{
+			if (globalClassStates.get(state) === null)
+				globalClassStates.set(state, new state());
+		}
+		else
+		{
+			globalClassStates.set(state, new state());
+		}
+		state = globalClassStates.get(state);
+	}
+	
 	if (!isState(state))
 	{
 		console.warn("Provided object is not a state object!");
@@ -448,7 +481,7 @@ export const intercept = <T extends {}>(state: T, interceptor: InterceptCallback
 	};
 
 	return revoker;
-};
+}; 
 
 const persistentMap = new Map<string, any>();
 
@@ -535,11 +568,10 @@ export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 		{
 			if (globalClassStates.get(state) === null)
 				globalClassStates.set(state, new state());
-
 		}
 		else
 		{
-			globalClassStates.set(state, new state())
+			globalClassStates.set(state, new state());
 		}
 		return globalClassStates.get(state);
 	}

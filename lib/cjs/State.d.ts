@@ -41,8 +41,10 @@ export declare const global: <T extends new (...args: any[]) => any>(Class: T) =
 export declare const observable: (Class: any, key: string) => void;
 export declare function use<T, Args extends any[]>(StateClass: new (...args: Args) => T, ...args: Args): T;
 export declare function use<T extends {}>(state: T): T;
-export declare const observe: <T extends {}>(state: T, observer: ObserveCallback<T>) => Revoker;
-export declare const intercept: <T extends {}>(state: T, interceptor: InterceptCallback<T>) => Revoker;
+export declare function observe<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, observer: ObserveCallback<T>): Revoker;
+export declare function observe<T extends {}>(state: T, observer: ObserveCallback<T>): Revoker;
+export declare function intercept<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, interceptor: InterceptCallback<T>): Revoker;
+export declare function intercept<T extends {}>(state: T, interceptor: InterceptCallback<T>): Revoker;
 export declare const createPersistent: <T extends {}>(name: string, state: T) => T;
 export declare const clearPersistent: () => void;
 export declare const useObserve: <T extends {}>(state: T, observer: ObserveCallback<T>) => void;
