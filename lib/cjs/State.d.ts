@@ -48,5 +48,5 @@ export declare const clearPersistent: () => void;
 export declare const useObserve: <T extends {}>(state: T, observer: ObserveCallback<T>) => void;
 export declare const reset: <T extends {}>(state: T) => void;
 export declare const createAsyncPersistent: <T>(name: string, resolver: AsyncResolver<T>) => AsyncState<T>;
-export declare const getGlobal: <T extends {}>(state: T) => any;
+export declare const getGlobal: <T extends {}>(state: new (...args: any) => T) => T;
 export {};

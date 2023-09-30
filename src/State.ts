@@ -527,15 +527,22 @@ export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T
 	return internal.state;
 };
 
-export const getGlobal = <T extends {}>(state: T) =>
+export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 {
-	if (!isClass(state))
-		throw new Error(`Given object is not a state class!`);
-
 	if (isWrappedClass(state))
 	{
-		if (!globalClassStates.has(state))
-			throw new Error(`Global state is not being used!`);
+		if (globalClassStates.has(state))
+		{
+			if (globalClassStates.get(state) === null)
+				globalClassStates.set(state, new state());
+
+		}
+		else
+		{
+			globalClassStates.set(state, new state())
+		}
 		return globalClassStates.get(state);
 	}
+	
+	throw new Error("Cannot get global state!");
 }
