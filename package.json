@@ -1,0 +1,29 @@
+{
+	"name": "proxix-example",
+	"private": true,
+	"version": "0.0.1",
+	"scripts": {
+		"start": "webpack --watch",
+		"watch": "webpack --watch",
+		"build": "webpack --mode=production"
+	},
+	"dependencies": {
+		"highlight.js": "^11.8.0",
+		"proxix": "^0.0.3",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0"
+	},
+	"devDependencies": {
+		"@types/react": "^18.2.15",
+		"@types/react-dom": "^18.2.7",
+		"@types/webpack-env": "^1.18.2",
+		"copy-webpack-plugin": "^11.0.0",
+		"html-webpack-plugin": "^5.5.3",
+		"raw-loader": "^4.0.2",
+		"ts-loader": "^9.4.4",
+		"tsconfig-paths-webpack-plugin": "^4.1.0",
+		"typescript": "^5.2.2",
+		"webpack": "^5.88.2",
+		"webpack-cli": "^5.1.4"
+	}
+}
