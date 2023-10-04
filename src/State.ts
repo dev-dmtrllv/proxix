@@ -501,7 +501,16 @@ export const createPersistent = <T extends {}>(name: string, state: T): T =>
 
 	observe(s, (key: any, value: any) => 
 	{
-		localStorage.setItem(name, JSON.stringify({ ...state, [key]: value } as any))
+		const newState = clone(state);
+		const keys: string[] = key.split(".");
+		const last: string = keys.splice(-1, 1)[0];
+		
+		let target: any = newState;
+		keys.forEach(k => target = target[k]);
+		
+		target[last] = value;
+		
+		localStorage.setItem(name, JSON.stringify(newState));
 	});
 
 	return s;
@@ -541,9 +550,9 @@ export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T
 	if (persistentMap.has(name))
 		return persistentMap.get(name);
 
-	const foundState = JSON.parse(localStorage.getItem(name) || "undefined") as AsyncState<T>;
+	const foundState = JSON.parse(localStorage.getItem(name) || "null") as AsyncState<T>;
 
-	const shouldResolve = !(foundState !== undefined && (foundState.error || foundState.data));
+	const shouldResolve = !(foundState !== null && (foundState.error || foundState.data));
 
 	const internal = createAsyncInternal(resolver, shouldResolve);
 
@@ -552,9 +561,18 @@ export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T
 
 	persistentMap.set(name, internal.state);
 
-	observe(internal.state, (key: any, val: any) => 
+	observe(internal.state, (key: any, value: any) => 
 	{
-		localStorage.setItem(name, JSON.stringify({ ...internal.state, [key]: val }));
+		const newState = clone(internal.state);
+		const keys: string[] = key.split(".");
+		const last: string = keys.splice(-1, 1)[0];
+		
+		let target: any = newState;
+		keys.forEach(k => target = target[k]);
+		
+		target[last] = value;
+		
+		localStorage.setItem(name, JSON.stringify(newState));
 	});
 
 	return internal.state;
