@@ -38,7 +38,7 @@ type AsyncHandlers<T> = {
 export declare const create: <T extends {}>(state: T) => T;
 export declare const createAsync: <T>(resolver: AsyncResolver<T>) => AsyncState<T>;
 export declare const global: <T extends new (...args: any[]) => any>(Class: T) => T;
-export declare const observable: (Class: any, key: string) => void;
+export declare const observable: PropertyDecorator;
 export declare function use<T, Args extends any[]>(StateClass: new (...args: Args) => T, ...args: Args): T;
 export declare function use<T extends {}>(state: T): T;
 export declare function observe<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, observer: ObserveCallback<T>): Revoker;
