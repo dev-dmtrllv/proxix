@@ -162,6 +162,10 @@ const createClassInternal = (state: any): Readonly<Internal<any, any>> =>
 	return internal;
 };
 
+/**
+ * @param state A state object which will automatically update all components that uses it.
+ * @returns The state object.
+ */
 export const create = <T extends {}>(state: T): T =>
 {
 	return createInternal(state, []).state as T;
@@ -247,10 +251,17 @@ const createAsyncInternal = <T>(resolver: AsyncResolver<T>, shouldResolve: boole
 	return internal;
 }
 
+/**
+ * @param resolver An async function that will be resolved.
+ * @returns An `AsyncState` wrapped around the data or error returned by the async function.
+ */
 export const createAsync = <T>(resolver: AsyncResolver<T>): AsyncState<T> => createAsyncInternal<T>(resolver).state;
 
 const globalClassStates = new Map<new (...args: any[]) => any, any>();
 
+/**
+ * A class decorator to create a singleton based state object.
+ */
 export const global = <T extends new (...args: any[]) => any>(Class: T): T =>
 {
 	const WrappedClass = wrap(Class);
@@ -260,7 +271,10 @@ export const global = <T extends new (...args: any[]) => any>(Class: T): T =>
 	return WrappedClass;
 };
 
-export const observable = (Class: any, key: string) =>
+/**
+ * A decorator which enables updating components on property change.
+ */
+export const observable: PropertyDecorator = (Class: any, key) =>
 {
 	if (!Class.constructor[OBSERVABLES])
 		Class.constructor[OBSERVABLES] = [];
@@ -381,7 +395,16 @@ function wrapState<T>(state: T, ...args: any[])
 	}
 };
 
+/**
+ * @summary A react hook to update the component on a state change.
+ * @param StateClass A state class.
+ * @param args The arguments which will be passed to the state class constructor.
+ */
 export function use<T, Args extends any[]>(StateClass: new (...args: Args) => T, ...args: Args): T;
+/**
+ * @summary A react hook to update the component on a state change.
+ * @param state A state object.
+ */
 export function use<T extends {}>(state: T): T;
 export function use(state: any, ...args: any[])
 {
@@ -396,7 +419,15 @@ export function use(state: any, ...args: any[])
 	return _state.state;
 };
 
+/**
+ * @param StateClass A state class.
+ * @param observer The observe callback which will be called when the state will change.
+ */
 export function observe<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, observer: ObserveCallback<T>): Revoker;
+/**
+ * @param state A state object.
+ * @param observer The observe callback which will be called when the state will change.
+ */
 export function observe<T extends {}>(state: T, observer: ObserveCallback<T>): Revoker;
 export function observe<T extends {}>(state: any, observer: ObserveCallback<T>): Revoker
 {
@@ -413,7 +444,7 @@ export function observe<T extends {}>(state: any, observer: ObserveCallback<T>):
 		}
 		state = globalClassStates.get(state);
 	}
-	
+
 	if (!isState(state))
 	{
 		console.warn("Provided object is not a state object!");
@@ -437,10 +468,19 @@ export function observe<T extends {}>(state: any, observer: ObserveCallback<T>):
 	};
 
 	return revoker;
-}; 
+};
 
-
+/**
+ * @summary When the interceptor returns false, then the state change will be canceled.
+ * @param StateClass A state class. 
+ * @param interceptor The intercept callback which will be called when the state will change.
+ */
 export function intercept<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, interceptor: InterceptCallback<T>): Revoker;
+/**
+ * @summary When the interceptor returns false, then the state change will be canceled.
+ * @param state A state object.
+ * @param interceptor The intercept callback which will be called when the state will change.
+ */
 export function intercept<T extends {}>(state: T, interceptor: InterceptCallback<T>): Revoker;
 export function intercept<T extends {}>(state: any, interceptor: InterceptCallback<T>): Revoker
 {
@@ -457,7 +497,7 @@ export function intercept<T extends {}>(state: any, interceptor: InterceptCallba
 		}
 		state = globalClassStates.get(state);
 	}
-	
+
 	if (!isState(state))
 	{
 		console.warn("Provided object is not a state object!");
@@ -481,10 +521,15 @@ export function intercept<T extends {}>(state: any, interceptor: InterceptCallba
 	};
 
 	return revoker;
-}; 
+};
 
 const persistentMap = new Map<string, any>();
 
+/**
+ * @param name The name which will be used to store and retreive the state from the localStorage.
+ * @param state The state object.
+ * @returns The state object.
+ */
 export const createPersistent = <T extends {}>(name: string, state: T): T =>
 {
 	if (persistentMap.has(name))
@@ -504,18 +549,21 @@ export const createPersistent = <T extends {}>(name: string, state: T): T =>
 		const newState = clone(state);
 		const keys: string[] = key.split(".");
 		const last: string = keys.splice(-1, 1)[0];
-		
+
 		let target: any = newState;
 		keys.forEach(k => target = target[k]);
-		
+
 		target[last] = value;
-		
+
 		localStorage.setItem(name, JSON.stringify(newState));
 	});
 
 	return s;
 };
 
+/**
+ * Clears all the persistent states.
+ */
 export const clearPersistent = () =>
 {
 	for (const [name, state] of persistentMap)
@@ -525,11 +573,18 @@ export const clearPersistent = () =>
 	}
 };
 
+/**
+ * @param state The state object to observe.
+ * @param observer The observe callback. 
+ */
 export const useObserve = <T extends {}>(state: T, observer: ObserveCallback<T>) =>
 {
-	return React.useEffect(() => observe(state, observer).revoke, []);
+	React.useEffect(() => observe(state, observer).revoke, []);
 };
 
+/**
+ * @param state The state object to reset.
+ */
 export const reset = <T extends {}>(state: T) =>
 {
 	if (!isState(state))
@@ -545,6 +600,11 @@ export const reset = <T extends {}>(state: T) =>
 	}
 };
 
+/**
+ * @param name The name which will be used to store and retreive the state from the localStorage.
+ * @param resolver An async function that will be resolved.
+ * @returns An `AsyncState` wrapped around the data or error returned by the async function.
+ */
 export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T>): AsyncState<T> =>
 {
 	if (persistentMap.has(name))
@@ -566,18 +626,22 @@ export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T
 		const newState = clone(internal.state);
 		const keys: string[] = key.split(".");
 		const last: string = keys.splice(-1, 1)[0];
-		
+
 		let target: any = newState;
 		keys.forEach(k => target = target[k]);
-		
+
 		target[last] = value;
-		
+
 		localStorage.setItem(name, JSON.stringify(newState));
 	});
 
 	return internal.state;
 };
 
+/**
+ * @param state The global state class.
+ * @returns The instance of the global state class.
+ */
 export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 {
 	if (isWrappedClass(state))
@@ -593,6 +657,6 @@ export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 		}
 		return globalClassStates.get(state);
 	}
-	
+
 	throw new Error("Cannot get global state!");
 }
