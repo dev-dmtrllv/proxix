@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"rootDir": "./src",
+				"rootDir": "./src",
 		"outDir": "./lib/esm",
 		"strictPropertyInitialization": true,
 		"allowArbitraryExtensions": false,
@@ -29,7 +29,7 @@
 		"noUnusedLocals": true,
 		"emitDecoratorMetadata": false,
 		"noUnusedParameters": true,
-		"removeComments": true,
+		"removeComments": false,
 		"resolveJsonModule": true,
 		"jsx": "react-jsx",
 		"strict": true,

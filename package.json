@@ -1,6 +1,6 @@
 {
 	"name": "proxix",
-	"version": "0.0.3",
+	"version": "0.0.5",
 	"description": "A simple react state management library made with proxies",
 	"scripts": {
 		"build": "npm run build:esm && npm run build:cjs",
