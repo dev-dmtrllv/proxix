@@ -1,1 +1,0 @@
-import{S as r,j as o,__tla as a}from"./index-f48ba628.js";let n,s=Promise.all([(()=>{try{return a}catch{}})()]).then(async()=>{const t=r.create({counter:0});r.intercept(t,(e,c)=>{if(e==="counter")return c<=10}),n=()=>{const{counter:e}=r.use(t);return o.jsxs("h1",{onClick:()=>t.counter++,children:["Counter: ",e," (Click me!)"]})}});export{s as __tla,n as default};
