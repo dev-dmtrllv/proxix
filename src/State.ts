@@ -1,6 +1,5 @@
 import React from "react";
 import { clone, isClass, isPrimitive, match } from "./utils";
-import State from ".";
 
 type PathImpl<T, K extends keyof T> =
 	K extends string
@@ -679,13 +678,13 @@ export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 	throw new Error("Cannot get global state!");
 };
 
-const resolveState = State.create({
+const resolveState = create({
 	isResolving: false
 });
 
 const onResolveCallbacks: OnResolveCallback[] = [];
 
-export const useResolve = () => State.use(resolveState);
+export const useResolve = () => use(resolveState);
 
 export const onResolve = (callback: OnResolveCallback): Revoker =>
 {
