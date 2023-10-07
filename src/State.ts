@@ -1,5 +1,6 @@
 import React from "react";
 import { clone, isClass, isPrimitive, match } from "./utils";
+import State from ".";
 
 type PathImpl<T, K extends keyof T> =
 	K extends string
@@ -75,6 +76,10 @@ type AsyncHandlers<T> = {
 	readonly reset: (resolver?: AsyncResolver<T>, prefetch?: boolean) => Promise<void>;
 	readonly cancel: (prefetch?: boolean) => void;
 };
+
+type OnResolveCallback = (isResolving: boolean) => void;
+
+let resolvingCount = 0;
 
 const INTERNAL = Symbol("INTERNAL");
 const CLASS_TAG = Symbol("CLASS_TAG");
@@ -185,6 +190,15 @@ const resolve = <T, R>(internal: Internal<AsyncState<T>, R>) =>
 {
 	if (internal.resolver)
 	{
+		if(++resolvingCount == 1)
+			onResolveCallbacks.forEach(cb => cb(true));
+		
+		const onResolved = () =>
+		{
+			if(--resolvingCount == 0)
+				onResolveCallbacks.forEach(cb => cb(false));
+		};
+
 		Object.assign(internal.state, {
 			data: undefined,
 			error: undefined,
@@ -203,6 +217,8 @@ const resolve = <T, R>(internal: Internal<AsyncState<T>, R>) =>
 				isLoading: false,
 				isCanceled: false
 			});
+
+			onResolved();
 		}).catch((error) => 
 		{
 			if (internal.state.isCanceled)
@@ -214,6 +230,8 @@ const resolve = <T, R>(internal: Internal<AsyncState<T>, R>) =>
 				isLoading: false,
 				isCanceled: false
 			});
+
+			onResolved();
 		});
 	}
 };
@@ -659,4 +677,22 @@ export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 	}
 
 	throw new Error("Cannot get global state!");
-}
+};
+
+const resolveState = State.create({
+	isResolving: false
+});
+
+const onResolveCallbacks: OnResolveCallback[] = [];
+
+export const useResolve = () => State.use(resolveState);
+
+export const onResolve = (callback: OnResolveCallback): Revoker =>
+{
+	if (!onResolveCallbacks.includes(callback))
+		onResolveCallbacks.push(callback);
+	
+	return {
+		revoke: () => onResolveCallbacks.splice(onResolveCallbacks.indexOf(callback), 1)
+	};
+};
