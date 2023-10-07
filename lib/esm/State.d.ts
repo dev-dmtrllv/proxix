@@ -35,6 +35,7 @@ type AsyncHandlers<T> = {
     readonly reset: (resolver?: AsyncResolver<T>, prefetch?: boolean) => Promise<void>;
     readonly cancel: (prefetch?: boolean) => void;
 };
+type OnResolveCallback = (isResolving: boolean) => void;
 /**
  * @param state A state object which will automatically update all components that uses it.
  * @returns The state object.
@@ -116,4 +117,8 @@ export declare const createAsyncPersistent: <T>(name: string, resolver: AsyncRes
  * @returns The instance of the global state class.
  */
 export declare const getGlobal: <T extends {}>(state: new (...args: any) => T) => T;
+export declare const useResolve: () => {
+    isResolving: boolean;
+};
+export declare const onResolve: (callback: OnResolveCallback) => Revoker;
 export {};
