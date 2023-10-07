@@ -55,7 +55,6 @@ export const App = () =>
 							{example.name}
 						</h2>
 					</a>
-
 				);
 			}))}
 		</div>
