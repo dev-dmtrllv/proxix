@@ -35,7 +35,6 @@ type AsyncHandlers<T> = {
     readonly reset: (resolver?: AsyncResolver<T>, prefetch?: boolean) => Promise<void>;
     readonly cancel: (prefetch?: boolean) => void;
 };
-type OnResolveCallback = (isResolving: boolean) => void;
 /**
  * @param state A state object which will automatically update all components that uses it.
  * @returns The state object.
@@ -45,7 +44,7 @@ export declare const create: <T extends {}>(state: T) => T;
  * @param resolver An async function that will be resolved.
  * @returns An `AsyncState` wrapped around the data or error returned by the async function.
  */
-export declare const createAsync: <T>(resolver: AsyncResolver<T>) => AsyncState<T>;
+export declare const createAsync: <T>(resolver: AsyncResolver<T>, resolve?: boolean) => AsyncState<T>;
 /**
  * A class decorator to create a singleton based state object.
  */
@@ -65,6 +64,11 @@ export declare function use<T, Args extends any[]>(StateClass: new (...args: Arg
  * @param state A state object.
  */
 export declare function use<T extends {}>(state: T): T;
+/**
+ * @summary A react hook to update the component on a state change.
+ * @param state A state object.
+ */
+export declare const useAsync: <T extends {}>(state: T, resolveOnMount?: boolean) => T;
 /**
  * @param StateClass A state class.
  * @param observer The observe callback which will be called when the state will change.
@@ -117,8 +121,5 @@ export declare const createAsyncPersistent: <T>(name: string, resolver: AsyncRes
  * @returns The instance of the global state class.
  */
 export declare const getGlobal: <T extends {}>(state: new (...args: any) => T) => T;
-export declare const useResolve: () => {
-    isResolving: boolean;
-};
-export declare const onResolve: (callback: OnResolveCallback) => Revoker;
+export declare const resolveAll: () => Promise<void>;
 export {};

@@ -30,6 +30,8 @@ type Internal<T extends {}, R> = {
 	observers: ObserveCallback<T>[];
 	interceptors: InterceptCallback<T>[];
 	resolver: AsyncResolver<R> | undefined;
+	isResolving: boolean;
+	resolved: boolean;
 };
 
 type ProxyState<T extends {}> = T & {
@@ -75,10 +77,6 @@ type AsyncHandlers<T> = {
 	readonly reset: (resolver?: AsyncResolver<T>, prefetch?: boolean) => Promise<void>;
 	readonly cancel: (prefetch?: boolean) => void;
 };
-
-type OnResolveCallback = (isResolving: boolean) => void;
-
-let resolvingCount = 0;
 
 const INTERNAL = Symbol("INTERNAL");
 const CLASS_TAG = Symbol("CLASS_TAG");
@@ -144,7 +142,9 @@ const createInternal = <T extends {}, R>(state: T, path: string[], resolver: Asy
 		dispatchers: [],
 		interceptors: [],
 		observers: [],
-		resolver: resolver
+		resolver: resolver,
+		isResolving: false,
+		resolved: false
 	};
 
 	internal.state = createProxy(internal, state, path);
@@ -160,7 +160,9 @@ const createClassInternal = (state: any): Readonly<Internal<any, any>> =>
 		dispatchers: [],
 		interceptors: [],
 		observers: [],
-		resolver: undefined
+		resolver: undefined,
+		isResolving: false,
+		resolved: false
 	};
 
 	return internal;
@@ -187,16 +189,16 @@ const createAsyncState = <T>(data: T | undefined, error: Error | undefined, isLo
 
 const resolve = <T, R>(internal: Internal<AsyncState<T>, R>) =>
 {
-	if (internal.resolver)
+	if (internal.resolver && !internal.isResolving)
 	{
-		if(++resolvingCount == 1)
-			onResolveCallbacks.forEach(cb => cb(true));
-		
-		const onResolved = () =>
+		internal.isResolving = true;
+		internal.resolved = false;
+
+		const onResolved = () => 
 		{
-			if(--resolvingCount == 0)
-				onResolveCallbacks.forEach(cb => cb(false));
-		};
+			internal.isResolving = false;
+			internal.resolved = true;
+		}
 
 		Object.assign(internal.state, {
 			data: undefined,
@@ -210,32 +212,30 @@ const resolve = <T, R>(internal: Internal<AsyncState<T>, R>) =>
 			if (internal.state.isCanceled)
 				return;
 
+			onResolved();
 			Object.assign(internal.state, {
 				data,
 				error: undefined,
 				isLoading: false,
 				isCanceled: false
 			});
-
-			onResolved();
 		}).catch((error) => 
 		{
 			if (internal.state.isCanceled)
 				return;
 
+			onResolved();
 			Object.assign(internal.state, {
 				data: undefined,
 				error,
 				isLoading: false,
 				isCanceled: false
 			});
-
-			onResolved();
 		});
 	}
 };
 
-const createAsyncInternal = <T>(resolver: AsyncResolver<T>, shouldResolve: boolean = true) =>
+const createAsyncInternal = <T>(resolver: AsyncResolver<T>) =>
 {
 	const internal = createInternal<AsyncState<T>, T>(createAsyncState<T>(undefined, undefined, true, false), [], resolver);
 
@@ -262,17 +262,27 @@ const createAsyncInternal = <T>(resolver: AsyncResolver<T>, shouldResolve: boole
 		}
 	});
 
-	if (shouldResolve)
-		resolve(internal);
-
 	return internal;
-}
+};
+
+const initResolveStack: Internal<AsyncState<any>, any>[] = [];
 
 /**
  * @param resolver An async function that will be resolved.
  * @returns An `AsyncState` wrapped around the data or error returned by the async function.
  */
-export const createAsync = <T>(resolver: AsyncResolver<T>): AsyncState<T> => createAsyncInternal<T>(resolver).state;
+export const createAsync = <T>(resolver: AsyncResolver<T>, resolve: boolean = false): AsyncState<T> => 
+{
+	const internal = createAsyncInternal<T>(resolver);
+
+	if (resolve)
+	{
+		if (!initResolveStack.includes(internal))
+			initResolveStack.push(internal);
+	}
+
+	return internal.state;
+};
 
 const globalClassStates = new Map<new (...args: any[]) => any, any>();
 
@@ -378,6 +388,7 @@ const dispatch = <T extends {}>(internal: Internal<T, any>, key: string, value: 
 };
 
 function wrapState<T extends {}, Args extends any[]>(StateClass: new (...args: Args) => T, ...args: Args): ProxyState<T>;
+function wrapState<T extends {}>(state: T): ProxyState<T>;
 function wrapState<T>(state: T, ...args: any[])
 {
 	if (isClass(state))
@@ -432,6 +443,44 @@ export function use(state: any, ...args: any[])
 		const removeDispatcher = addDispatcher(_state.state, _setState);
 		return removeDispatcher;
 	}, [_setState]);
+
+	React.useEffect(() => 
+	{
+		if (isState(state))
+		{
+			const internal = state[INTERNAL] as Internal<any, any>;
+			if (internal.resolver && !internal.resolved)
+				resolve(internal);
+		}
+	}, []);
+
+	return _state.state;
+};
+
+/**
+ * @summary A react hook to update the component on a state change.
+ * @param state A state object.
+ */
+export const useAsync = <T extends {}>(state: T, resolveOnMount: boolean = false): T =>
+{
+	const [_state, _setState] = React.useState({ state: wrapState(state) });
+
+	React.useEffect(() => 
+	{
+		const removeDispatcher = addDispatcher(_state.state, _setState);
+		return removeDispatcher;
+	}, [_setState]);
+
+	React.useEffect(() => 
+	{
+		if (isState(state))
+		{
+			const internal = state[INTERNAL] as Internal<any, any>;
+
+			if (internal.resolver && (!internal.resolved || resolveOnMount))
+				resolve(internal);
+		}
+	}, []);
 
 	return _state.state;
 };
@@ -629,9 +678,7 @@ export const createAsyncPersistent = <T>(name: string, resolver: AsyncResolver<T
 
 	const foundState = JSON.parse(localStorage.getItem(name) || "null") as AsyncState<T>;
 
-	const shouldResolve = !(foundState !== null && (foundState.error || foundState.data));
-
-	const internal = createAsyncInternal(resolver, shouldResolve);
+	const internal = createAsyncInternal(resolver);
 
 	if (foundState)
 		Object.assign(internal.state, foundState);
@@ -678,20 +725,8 @@ export const getGlobal = <T extends {}>(state: new (...args: any) => T): T =>
 	throw new Error("Cannot get global state!");
 };
 
-const resolveState = create({
-	isResolving: false
-});
-
-const onResolveCallbacks: OnResolveCallback[] = [];
-
-export const useResolve = () => use(resolveState);
-
-export const onResolve = (callback: OnResolveCallback): Revoker =>
+export const resolveAll = async () => 
 {
-	if (!onResolveCallbacks.includes(callback))
-		onResolveCallbacks.push(callback);
-	
-	return {
-		revoke: () => onResolveCallbacks.splice(onResolveCallbacks.indexOf(callback), 1)
-	};
+	await Promise.all(initResolveStack.map(async (internal) => await resolve(internal)));
+	initResolveStack.splice(0);
 };
